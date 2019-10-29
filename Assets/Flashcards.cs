@@ -22,6 +22,7 @@ public class Flashcards : MonoBehaviour
     public GameObject flashcard_panel;
     private Animator animator;
     private List<Flashcard> cards;
+    private List<Flashcard> cards_to_show;
     private Flashcard cur_card;
 
     public Text flashcard_context_1;
@@ -29,13 +30,15 @@ public class Flashcards : MonoBehaviour
     public Text flashcard_value;
 
     private int cur_card_index;
-    
+
     private MODE cur_mode;
     public Toggle cur_card_known;
-    
+
     public GameObject done_panel;
     public Toggle review_known_toggle;
     private bool review_known_cards;
+
+    public Text card_num_text;
     private enum STATE
     {
         SHOWING_QUESTION,
@@ -43,13 +46,15 @@ public class Flashcards : MonoBehaviour
         SHOWING_DONE_PANEL,
         NONE
     }
+
     private enum MODE
     {
-        KOR_TO_ENG_FLASHCARD,
-        ENG_TO_KOR_FLASHCARD,
-        ENG_TO_KOR_TYPE,
-        KOR_TO_KOR_TYPE
+        KOR_TO_ENG_FLASHCARD, // korean -> english def + korean context + eng context
+        ENG_TO_KOR_FLASHCARD, // english def -> korean + korean context + eng context
+        ENG_TO_KOR_TYPE, // english def -> korean + korean context + eng context
+        KOR_TO_KOR_TYPE // korean def -> korean + korean context
     }
+
     // Start is called before the first frame update
     void Start()
     {
@@ -60,8 +65,10 @@ public class Flashcards : MonoBehaviour
         wrong_answer_button.onClick.AddListener(wrong_answer);
         right_answer_button.onClick.AddListener(right_answer);
         test.onClick.AddListener(switch_panel);
-        animator= flashcard_panel.GetComponent<Animator>();
+        animator = flashcard_panel.GetComponent<Animator>();
         cards = Flashcard.test_cards();
+        cards_to_show = cards;
+
         cur_card_index = 0;
         review_known_cards = false;
         cur_mode = MODE.KOR_TO_ENG_FLASHCARD;
@@ -71,65 +78,57 @@ public class Flashcards : MonoBehaviour
 
     public void refresh_card()
     {
-        cur_card = cards[cur_card_index];
+        cur_card = cards_to_show[cur_card_index];
     }
 
     public void switch_panel()
     {
-        print( Time.deltaTime * 1000);
+        print(Time.deltaTime * 1000);
         if (flashcard_panel != null)
         {
-            
+
             if (animator != null)
             {
                 bool show_bottom = animator.GetBool("show_bottom");
-                
+
                 animator.SetBool("show_bottom", !show_bottom);
                 print(Time.deltaTime * 1000);
             }
         }
     }
-    
-    public void show_flashcard_side(bool top=true)
+
+    public void show_flashcard_side(bool top = true)
     {
-        print("SHPOW");
+        FlashcardSide front_side = cur_card.front;
+        FlashcardSide back_side = cur_card.back;
+
         if (cur_mode == MODE.KOR_TO_ENG_FLASHCARD)
         {
-            cur_card_known.isOn = cur_card.known;
-            if (top)
-            {
-                flashcard_value.text = cur_card.krn_side;
-                flashcard_context_1.text = "";
-                flashcard_context_2.text = "";
-                cur_state = STATE.SHOWING_QUESTION;
-            }
-            else
-            {
-                flashcard_value.text = cur_card.eng_side;
-                flashcard_context_1.text = cur_card.krn_context;
-                flashcard_context_2.text = cur_card.eng_context;
-                cur_state = STATE.SHOWING_ANSWER;
-            }
-
-            
+            front_side = cur_card.front;
+            back_side = cur_card.back;
         } else if (cur_mode == MODE.ENG_TO_KOR_FLASHCARD)
         {
-            if (top)
-            {
-                flashcard_value.text = cur_card.eng_side;
-                flashcard_context_1.text = cur_card.krn_context;
-                flashcard_context_2.text = "";
-                cur_state = STATE.SHOWING_QUESTION;
-            }
-            else
-            {
-                flashcard_value.text = cur_card.krn_side;
-                flashcard_context_1.text = cur_card.krn_context;
-                flashcard_context_2.text = cur_card.eng_context;
-                cur_state = STATE.SHOWING_ANSWER;
-            }
-            
+            front_side = cur_card.front;
+            back_side = cur_card.back;
         }
+
+        FlashcardSide side_shown = front_side;
+        cur_card_known.isOn = cur_card.known;
+        if (top)
+        {
+            
+            cur_state = STATE.SHOWING_QUESTION;
+        }
+        else
+        {
+            side_shown = back_side;
+            cur_state = STATE.SHOWING_ANSWER;
+        }
+
+        flashcard_value.text = side_shown.value;
+        flashcard_context_1.text = side_shown.additional_value;
+        flashcard_context_2.text = side_shown.value_3;
+
     }
     public void show_flashcard_panel()
     {
@@ -146,15 +145,6 @@ public class Flashcards : MonoBehaviour
         show_flashcard_side(true);
     }
 
-    private void set_flashcard_panel_string(string string_game_object_name, string value)
-    {
-        GameObject top_string = flashcard_panel.transform.Find(string_game_object_name).gameObject;
-        if (top_string != null)
-        {
-            top_string.GetComponent<Text>().text = value;
-        }
-    }
-
     // Update is called once per frame
     void Update()
     {
@@ -164,8 +154,15 @@ public class Flashcards : MonoBehaviour
 
     void toggle_known()
     {
-        cur_card.known = !cur_card.known;
-        cur_card_known.isOn = cur_card.known;
+        foreach (Flashcard card in cards)
+        {
+            if (card == cur_card)
+            {
+                cur_card.known = !cur_card.known;
+                cur_card_known.isOn = cur_card.known;
+            }
+        }
+        
     }
     
     void get_input()
@@ -188,21 +185,18 @@ public class Flashcards : MonoBehaviour
             if (cur_state == STATE.SHOWING_DONE_PANEL)
             {
                 review_known_cards = review_known_toggle.isOn;
-                if (!review_known_cards)
+                cards_to_show = new List<Flashcard>();
+                for (int i = 0; i < cards.Count; i++)
                 {
-                    for (int i = 0; i < cards.Count; i++)
+                    if ((!review_known_cards && !cards[i].known) || review_known_cards)
                     {
-                        if (!cards[i].known)
-                        {
-                            cur_card_index = i;
-                            break;
-                        }
+                        cards_to_show.Add(cards[i]);
                     }
                 }
-                else
-                {
-                    cur_card_index = 0;
-                }
+
+                Utils.Shuffle(cards_to_show);
+                cur_card_index = 0;
+                refresh_card();
                 print("show flashcard");
                 show_flashcard_panel();
             }
@@ -245,7 +239,7 @@ public class Flashcards : MonoBehaviour
 
     void next_card()
     {
-        if (cur_card_index == cards.Count - 1)
+        if (cur_card_index == cards_to_show.Count - 1)
         {
             show_all_done_panel();
         }

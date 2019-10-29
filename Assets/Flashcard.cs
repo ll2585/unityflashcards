@@ -1,43 +1,50 @@
 ﻿
+    using System;
     using System.Collections.Generic;
     using System.IO;
-    public class Flashcard
-    {
-        public string krn_side { get; set; }
-        public string eng_side { get; set; }
-        public string krn_def { get; set; }
-        public string krn_context { get; set; }
-        public string eng_context { get; set; }
-        public bool known { get; set; }
+    using System.Text.RegularExpressions;
+    using UnityEngine;
 
-        public Flashcard(string krn_side, string eng_side, string krn_def, string krn_context, string eng_context)
+    public class Flashcard
+    { 
+        public bool known { get; set; }
+        public FlashcardSide front { get; }
+        public FlashcardSide back { get; }
+
+        public Flashcard(Term t,FlashcardSide front, FlashcardSide back)
         {
-            this.krn_side = krn_side;
-            this.eng_side = eng_side;
-            this.krn_def = krn_def;
-            this.krn_context = krn_context;
             known = false;
-            this.eng_context = eng_context;
+            this.front = front;
+            this.back = back;
         }
         public static List<Flashcard> test_cards () {
             List<Flashcard> result = new List<Flashcard>();
-            result.Add(new Flashcard("시시하다", "1. trifling; trivial; insignificant [Negligible, neither special nor important.]",
-                "별다르거나 중요하지 않고 하찮다.", "시시하다.", "Boring."));
+            Term a = new Term("시시하다", "1. trifling; trivial; insignificant [Negligible, neither special nor important.]", "별다르거나 중요하지 않고 하찮다.", "시시하다",
+                "Boring.");
+            FlashcardSide front = new FlashcardSide(a.krn_side);
+            FlashcardSide back = new FlashcardSide(a.eng_side, a.krn_context, a.eng_context);
+            result.Add(new Flashcard(a, front, back));
             using(var reader = new StreamReader(@"test.csv"))
             {
+                
                 while (!reader.EndOfStream)
                 {
                     var line = reader.ReadLine();
-                    var values = line.Split(',');
+                    Regex CSVParser = new Regex(",(?=(?:[^\"]*\"[^\"]*\")*(?![^\"]*\"))");
+                    String[] values = CSVParser.Split(line);
+                    //var values = line.Split(',');
                     string krn = values[0];
                     string eng = values[1];
                     string krn_def = values[2];
-                    result.Add(new Flashcard(krn, eng,
-                        krn_def, "---.", "---."));
+                    Term t = new Term(krn, eng, krn_def);
+                    FlashcardSide t_front = new FlashcardSide(t.krn_side);
+                    FlashcardSide t_back = new FlashcardSide(t.eng_side, t.krn_context, t.eng_context);
+                    Debug.Log(back.value);
+                    result.Add(new Flashcard(t, t_front, t_back));
                 }
             }
-            
-            
+            Debug.Log(result.Count);
+            Utils.Shuffle(result);
             return result;
         }
     }
